@@ -68,6 +68,16 @@ describe('booking', () => {
     expect(response.status).toBe(422);
   });
 
+  test('requires an explicit timezone offset', async () => {
+    const response = await request(app)
+      .post('/api/appointments')
+      .set('Authorization', `Bearer ${userToken}`)
+      .send({ doctorId: doctor.id, startAt: `${date}T09:00:00` });
+
+    expect(response.status).toBe(400);
+    expect(response.body.code).toBe('VALIDATION_ERROR');
+  });
+
   test('already-booked slot is rejected', async () => {
     const slot = await firstSlot(userToken, doctor.id, date);
     const first = await request(app)

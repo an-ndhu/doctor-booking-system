@@ -1,4 +1,5 @@
 import bcrypt from 'bcrypt';
+import { sequelize } from '../../config/database';
 import * as userRepository from './user.repository';
 import { ConflictError, NotFoundError, BusinessRuleError } from '../../shared/errors';
 import { ROLES, type Role } from '../../shared/constants';
@@ -52,35 +53,41 @@ export async function updateUser(
   _actorId: number,
   payload: { name?: string; email?: string; password?: string; role?: Role }
 ) {
-  const user = await userRepository.findInClinic(userId, clinicId);
-  if (!user) {
-    throw new NotFoundError('User not found');
-  }
-
-  if (payload.role && payload.role !== user.role && user.role === ROLES.ADMIN) {
-    const adminCount = await userRepository.countAdmins(clinicId);
-    if (adminCount <= 1) {
-      throw new BusinessRuleError('Cannot change the role of the last admin in the clinic');
+  return sequelize.transaction(async (transaction) => {
+    const users = await userRepository.findByClinic(clinicId, {
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+    const user = users.find((item) => item.id === userId);
+    if (!user) {
+      throw new NotFoundError('User not found');
     }
-  }
 
-  if (payload.email && payload.email.toLowerCase() !== user.email) {
-    const existing = await userRepository.findByEmail(payload.email);
-    if (existing && existing.id !== user.id) {
-      throw new ConflictError('Email is already registered');
+    if (payload.role && payload.role !== user.role && user.role === ROLES.ADMIN) {
+      const adminCount = users.filter((item) => item.role === ROLES.ADMIN).length;
+      if (adminCount <= 1) {
+        throw new BusinessRuleError('Cannot change the role of the last admin in the clinic');
+      }
     }
-  }
 
-  const updates: Partial<Pick<typeof user, 'name' | 'email' | 'role' | 'passwordHash'>> = {
-    name: payload.name ?? user.name,
-    email: payload.email ? payload.email.toLowerCase() : user.email,
-    role: payload.role ?? user.role,
-  };
+    if (payload.email && payload.email.toLowerCase() !== user.email) {
+      const existing = await userRepository.findByEmail(payload.email, { transaction });
+      if (existing && existing.id !== user.id) {
+        throw new ConflictError('Email is already registered');
+      }
+    }
 
-  if (payload.password) {
-    updates.passwordHash = await bcrypt.hash(payload.password, SALT_ROUNDS);
-  }
+    const updates: Partial<Pick<typeof user, 'name' | 'email' | 'role' | 'passwordHash'>> = {
+      name: payload.name ?? user.name,
+      email: payload.email ? payload.email.toLowerCase() : user.email,
+      role: payload.role ?? user.role,
+    };
 
-  const updated = await userRepository.update(user, updates);
-  return toPublicUser(updated);
+    if (payload.password) {
+      updates.passwordHash = await bcrypt.hash(payload.password, SALT_ROUNDS);
+    }
+
+    const updated = await userRepository.update(user, updates, { transaction });
+    return toPublicUser(updated);
+  });
 }

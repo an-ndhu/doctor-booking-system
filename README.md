@@ -40,6 +40,7 @@ Doctor working hours are **wall-clock times in the clinic timezone**. Appointmen
 5. Return ISO-8601 UTC timestamps
 
 The process timezone is treated as irrelevant. Tests force `TZ=UTC`.
+Appointment and exception timestamps must include `Z` or an explicit UTC offset.
 
 ## Double-booking strategy
 

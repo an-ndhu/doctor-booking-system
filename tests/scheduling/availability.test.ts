@@ -115,4 +115,19 @@ describe('availability', () => {
     expect(response.status).toBe(200);
     expect(response.body.data.slots[0].startAt).toBe(expected);
   });
+
+  test('rejects impossible calendar dates', async () => {
+    const clinic = await seedClinic();
+    await createUser({ clinicId: clinic.id, email: 'user@example.com', role: ROLES.USER });
+    const doctor = await createDoctorWithSchedule({ clinicId: clinic.id });
+    const token = await login('user@example.com');
+
+    const response = await request(app)
+      .get(`/api/doctors/${doctor.id}/availability`)
+      .query({ date: '2026-02-30' })
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(response.status).toBe(400);
+    expect(response.body.code).toBe('VALIDATION_ERROR');
+  });
 });

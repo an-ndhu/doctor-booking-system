@@ -1,4 +1,5 @@
 import { DateTime } from 'luxon';
+import { sequelize } from '../../config/database';
 import type { FindOptions } from 'sequelize';
 import * as doctorRepository from '../doctors/doctor.repository';
 import * as clinicRepository from '../clinics/clinic.repository';
@@ -81,7 +82,9 @@ export async function upsertSchedule(clinicId: number, doctorId: number, payload
     ]);
   }
 
-  const rows = await schedulingRepository.replaceDaySchedule(doctorId, payload.dayOfWeek, intervals);
+  const rows = await sequelize.transaction((transaction) =>
+    schedulingRepository.replaceDaySchedule(doctorId, payload.dayOfWeek, intervals, { transaction })
+  );
   return rows.map(toPublicSchedule);
 }
 

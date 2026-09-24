@@ -21,7 +21,12 @@ export function validate(schema: ObjectSchema, property: RequestProperty = 'body
       return;
     }
 
-    req[property] = value;
+    Object.defineProperty(req, property, {
+      configurable: true,
+      enumerable: true,
+      value,
+      writable: true,
+    });
     next();
   };
 }
